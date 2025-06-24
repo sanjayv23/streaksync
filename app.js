@@ -37,7 +37,7 @@ app.use(session({
   resave: false,
   saveUninitialized: true,
   cookie: {
-    maxAge: 1000 * 60 * 60 * 24 * 7,
+    maxAge: 1000 * 60 * 60 * 24 ,
   }
 }));
 
@@ -64,11 +64,12 @@ app.get("/login", (req,res) => {
 });
 
 app.get("/app", async (req,res) => {
+  console.log(" data: "+ new Date().toISOString().split('T')[0]);
   if(req.isAuthenticated()) {
     let a,b;
     try {
-        const data = await db.query("select * from task where date=($1) and month=($2) and year=($3);",
-          [d.getDate(),d.getMonth()+1,d.getFullYear()]);
+        const data = await db.query("select * from task where date=($1) and month=($2) and year=($3) and user_id=($4);",
+          [d.getDate(),d.getMonth()+1,d.getFullYear(),req.user.id]);
         const data2 = await db.query("select * from complete_task where date=($1) and month=($2) and year=($3);",
           [d.getDate(),d.getMonth()+1,d.getFullYear()]);
         a=data.rowCount;
@@ -80,6 +81,9 @@ app.get("/app", async (req,res) => {
       console.error("error is executing"+err.stack);
     }
     percent = (a + b) === 0 ? 0 : (b / (a + b)) * 100;
+    await db.query(
+      "INSERT INTO complete_percentage (user_id, date, percentage) VALUES ($1, $2, $3) ON CONFLICT (user_id, date) DO UPDATE SET percentage = $3;",[req.user.id,new Date().toISOString().split('T')[0],parseInt(percent)]
+    );
     res.render("app.ejs", {task:task,date:date,complete:complete,percent:percent} );
   }
   else 
@@ -98,12 +102,11 @@ app.get("/auth/google/streaksync", passport.authenticate("google", {
 app.get("/logout", (req,res) => {
   req.logOut((err) => {
     if(err) console.log(err);
-    res.redirect("/");
+    res.redirect("/login");
   })
 })
 
-// post routes
-
+// p
 app.post("/register", async (req,res) => {
 
   const {name, mail, password} = req.body;
@@ -130,20 +133,29 @@ app.post("/register", async (req,res) => {
     });
 });
 
+// login page
 app.post("/login", passport.authenticate("local", {
   successRedirect: "/app",
   failureRedirect: "/login?error=Invalid credentials.",
 }));
 
-app.post("/task",(req,res)=>{
-  console.log("task: "+req.body.t_name);
-  const task_id=uuidv4();
-  db.query('INSERT INTO task (user_id, task, task_id, date, month, year) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.user.id, req.body.t_name, task_id, d.getDate(), d.getMonth()+1, d.getFullYear()]
+// add task on task list
+app.post("/task", async (req, res) => {
+  console.log("task:", req.body.t_name);
+  const task_id = uuidv4();
+  try {
+    await db.query(
+      'INSERT INTO task (user_id, task, task_id, date, month, year) VALUES ($1, $2, $3, $4, $5, $6)',
+      [req.user.id, req.body.t_name, task_id, d.getDate(), d.getMonth() + 1, d.getFullYear()]
     );
-  res.redirect("/app");  
+    res.redirect("/app");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Failed to add task");
+  }
 });
 
+// delete task on task list
 app.post("/delete-task",async (req,res)=>{
   console.log("del id: "+req.body.task_id);
   try {    
@@ -155,23 +167,57 @@ app.post("/delete-task",async (req,res)=>{
   res.redirect("/app");
 });
 
-app.post("/complete-task",async (req,res)=>{
-  console.log(req.body);
+// to mark complete on task
+app.post("/complete-task", async (req, res) => {
+  if (!req.isAuthenticated()) return res.redirect("/login");
+
+  const d = new Date(); // fresh date
   try {
-      db.query("delete from task where task_id=($1)",[req.body.task_id]);
-      const data = await db.query("select * from task where date=($1) and month=($2) and year=($3);",
-        [d.getDate(),d.getMonth()+1,d.getFullYear()]); 
-      db.query('INSERT INTO complete_task (user_id, task, task_id, date, month, year) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.user.id ,req.body.task, req.body.task_id, d.getDate(), d.getMonth()+1, d.getFullYear()]
+    // Delete task from `task` table
+    await db.query(
+      "DELETE FROM task WHERE task_id = $1",
+      [req.body.task_id]
     );
+
+    // Insert into `complete_task`
+    await db.query(
+      "INSERT INTO complete_task (user_id, task, task_id, date, month, year) VALUES ($1, $2, $3, $4, $5, $6)",
+      [req.user.id, req.body.task, req.body.task_id, d.getDate(), d.getMonth() + 1, d.getFullYear()]
+    );
+    // let a,b;
+    // try {
+    //     const data = await db.query("select * from task where date=($1) and month=($2) and year=($3) and user_id=($4);",
+    //       [d.getDate(),d.getMonth()+1,d.getFullYear(),req.user.id]);
+    //     const data2 = await db.query("select * from complete_task where date=($1) and month=($2) and year=($3);",
+    //       [d.getDate(),d.getMonth()+1,d.getFullYear()]);
+    //     a=data.rowCount;
+    //     b=data2.rowCount;
+    //     complete=data2.rows;
+    //     task=data.rows; 
+    // }
+    // catch(err) {
+    //   console.error("error is executing"+err.stack);
+    // }
+    // percent = (a + b) === 0 ? 0 : (b / (a + b)) * 100;
+    // console.log("inside: /complete-task: "+parseInt(percent) );
+    
+    // await db.query(
+    //   "INSERT INTO complete_percentage (user_id, date, percentage) VALUES ($1, $2, $3) ON CONFLICT (user_id, date) DO UPDATE SET percentage = $3;",[req.user.id,new Date().toISOString().split('T')[0],parseInt(percent)]
+    // );
+
+
+    //res.render("app.ejs", {task:task,date:date,complete:complete,percent:percent} );
+
+    res.redirect("/app");
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error completing task");
   }
-  catch(err) {
-      console.error(err);
-  }
-  res.redirect("/app");
 });
 
 
+// delete all completed task
 app.post("/delete-complete",(req,res)=>{
   try{
       db.query("delete from complete_task where date=($1) and month=($2) and year=($3)",
@@ -183,6 +229,8 @@ app.post("/delete-complete",(req,res)=>{
   res.redirect("/app");
 })
 
+
+// delete all task on task list
 app.post("/delete-today",(req,res)=>{
   try {
       db.query("delete from task where date=($1) and month=($2) and year=($3)",
@@ -195,8 +243,8 @@ app.post("/delete-today",(req,res)=>{
   res.redirect("/app");
 })
 
-// strategies
 
+// strategies
 passport.use("local",
   new Strategy({ usernameField: "mail" }, async function verify(mail, password, cb) {
   try {
