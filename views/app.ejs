@@ -5,6 +5,13 @@
 </a>
 <br>
 <h1>task to be done</h1>
+
+<form action="/streak" method="post">
+    <label for="name" >Streak: </label>
+    <input type="text" name="user_id" value="<%=user_id%>" hidden>
+    <input type="submit" value="streak">
+</form>
+
 <form action="/task" method="post">
     <label for="name" >Tasks: </label>
     <input type="text" placeholder="  ⌨ Type Your Tasks" name="t_name">

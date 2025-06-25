@@ -70,8 +70,8 @@ app.get("/app", async (req,res) => {
     try {
         const data = await db.query("select * from task where date=($1) and month=($2) and year=($3) and user_id=($4);",
           [d.getDate(),d.getMonth()+1,d.getFullYear(),req.user.id]);
-        const data2 = await db.query("select * from complete_task where date=($1) and month=($2) and year=($3);",
-          [d.getDate(),d.getMonth()+1,d.getFullYear()]);
+        const data2 = await db.query("select * from complete_task where date=($1) and month=($2) and year=($3) and user_id=($4);",
+          [d.getDate(),d.getMonth()+1,d.getFullYear(),req.user.id]);
         a=data.rowCount;
         b=data2.rowCount;
         complete=data2.rows;
@@ -84,7 +84,11 @@ app.get("/app", async (req,res) => {
     await db.query(
       "INSERT INTO complete_percentage (user_id, date, percentage) VALUES ($1, $2, $3) ON CONFLICT (user_id, date) DO UPDATE SET percentage = $3;",[req.user.id,new Date().toISOString().split('T')[0],parseInt(percent)]
     );
-    res.render("app.ejs", {task:task,date:date,complete:complete,percent:percent} );
+    // for(let i=0;i<task.length;i++){
+    //   console.log("task: "+JSON.stringify(task[i]));
+    // }
+    
+    res.render("app.ejs", {user_id:req.user.id,task:task,date:date,complete:complete,percent:percent} );
   }
   else 
     res.redirect("/login?error=Kindly login.");
@@ -98,6 +102,28 @@ app.get("/auth/google/streaksync", passport.authenticate("google", {
   successRedirect: "/app",
   failureRedirect: "/login?error=Invalid credentials.",
 }));
+
+app.post("/streak", async (req, res) => {
+  try {
+    console.log(req.user); // Ensure this has { id: ... }
+
+    const result = await db.query(`
+  SELECT TO_CHAR(date, 'YYYY-MM-DD') AS date, percentage
+  FROM complete_percentage
+  WHERE user_id = $1;
+`,[req.user.id]
+    );
+
+    console.log("-------"+JSON.stringify(result.rows)); // Log rows for debugging
+
+
+    res.render("streak.ejs", { streak: result.rows }); // send data to EJS
+  } catch (err) {
+    console.error("Error fetching streak data:", err);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
 
 app.get("/logout", (req,res) => {
   req.logOut((err) => {
