@@ -44,78 +44,137 @@
       pointer-events: none;
       z-index: 10;
     }
+    #heatmap-container {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: 6px;
+}
+
+.month-labels {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: 1fr;
+  font-size: 12px;
+  color: #aaa;
+  margin-left: 2px;
+  position: relative;
+  left: 0px;
+}
+
+
+.month-label {
+  
+  grid-row: 1;
+  text-align: center;
+}
+
   </style>
 </head>
 <body>
 
   <h1>🔥 Your Streak Heatmap</h1>
 
-  <div class="heatmap" id="heatmap"></div>
-  <div class="tooltip" id="tooltip"></div>
+  <div id="heatmap-container">
+    <div class="month-labels" id="month-labels"></div>
+    <div class="heatmap" id="heatmap"></div>
+  </div>
+
+<div class="tooltip" id="tooltip"></div>
 
   <script>
-     const streakData = JSON.parse('<%- JSON.stringify(streak) %>');
-    console.log("Raw streakData:", streakData);
-    console.log("inside ejs: "+streakData);
-    const dataMap = {};
-    streakData.forEach(entry => {
-      dataMap[entry.date] = entry.percentage;
-    });
+  const streakData = JSON.parse('<%- JSON.stringify(streak) %>');
+  const dataMap = {};
+  streakData.forEach(entry => {
+    dataMap[entry.date] = entry.percentage;
+  });
 
-    function getColor(percentage) {
-      if (percentage >= 90) return "#216e39";
-      if (percentage >= 60) return "#30a14e";
-      if (percentage >= 30) return "#40c463";
-      if (percentage > 0) return "#9be9a8";
-      return "#ebedf0"; // no progress
+  function getColor(percentage) {
+    if (percentage >= 90) return "#216e39";
+    if (percentage >= 60) return "#30a14e";
+    if (percentage >= 30) return "#40c463";
+    if (percentage > 0) return "#9be9a8";
+    return "#ebedf0"; // no progress
+  }
+
+  function getPastDates(monthsBack = 6) {
+    const dates = [];
+    const today = new Date();
+    const start = new Date(today);
+    start.setDate(1); // Start from first of the month
+    start.setMonth(today.getMonth() - monthsBack);
+
+    for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+      const iso = d.toISOString().split('T')[0];
+      dates.push(iso);
     }
+    return dates;
+  }
 
-    function getPastDates(monthsBack = 6) {
-      const dates = [];
-      const today = new Date();
-      const start = new Date(today);
-      start.setMonth(today.getMonth() - monthsBack);
-        let cnt=1;
-      for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
-        const iso = d.toISOString().split('T')[0];
-        dates.push(iso);
-        cnt++;
-        
-      }
+  const dates = getPastDates();
+  const heatmap = document.getElementById("heatmap");
+  const labelRow = document.getElementById("month-labels");
+  const tooltip = document.getElementById("tooltip");
 
-      return dates;
-    }
+  let prevMonth = -1;
+  let currentWeek = -1;
 
-    const dates = getPastDates();
-    const container = document.getElementById("heatmap");
-    const tooltip = document.getElementById("tooltip");
+  dates.forEach((date, i) => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const month = d.getMonth();
+  const monthName = d.toLocaleString("default", { month: "short" });
 
-    dates.forEach(date => {
-      const percentage = dataMap[date] || 0;
-      const color = getColor(percentage);
-      const box = document.createElement("div");
-      box.className = "day-box";
-      box.style.backgroundColor = color;
+  // Track week column
+  if (day === 0 || i === 0) currentWeek++;
 
-      // Tooltip handling
-      box.addEventListener("mouseenter", (e) => {
-        tooltip.textContent = `${date} - ${percentage}% complete`;
-        tooltip.style.left = e.pageX + 10 + "px";
-        tooltip.style.top = e.pageY + "px";
-        tooltip.style.display = "block";
-      });
+  // If new month and not the first date, insert spacer
+  if (month !== prevMonth && i !== 0) {
+    const spacer = document.createElement("div");
+    spacer.style.width = "6px";
+    spacer.style.gridRow = "span 7";
+    heatmap.appendChild(spacer);
+  }
 
-      box.addEventListener("mousemove", (e) => {
-        tooltip.style.left = e.pageX + 10 + "px";
-        tooltip.style.top = e.pageY + "px";
-      });
+  // Month label
+  if (month !== prevMonth) {
+    const label = document.createElement("div");
+    label.className = "month-label";
+    label.style.gridColumnStart = currentWeek + 1;
+    label.textContent = monthName;
+    labelRow.appendChild(label);
+  }
 
-      box.addEventListener("mouseleave", () => {
-        tooltip.style.display = "none";
-      });
+  // Day box
+  const box = document.createElement("div");
+  box.className = "day-box";
+  box.style.backgroundColor = getColor(dataMap[date] || 0);
 
-      container.appendChild(box);
-    });
-  </script>
+  // Tooltip
+  box.addEventListener("mouseenter", (e) => {
+    tooltip.textContent = `${date} - ${dataMap[date] || 0}% complete`;
+    tooltip.style.left = e.pageX + 10 + "px";
+    tooltip.style.top = e.pageY + "px";
+    tooltip.style.display = "block";
+  });
+
+  box.addEventListener("mousemove", (e) => {
+    tooltip.style.left = e.pageX + 10 + "px";
+    tooltip.style.top = e.pageY + "px";
+  });
+
+  box.addEventListener("mouseleave", () => {
+    tooltip.style.display = "none";
+  });
+
+  heatmap.appendChild(box);
+
+  // Now update prevMonth
+  prevMonth = month;
+});
+
+</script>
+
+
 </body>
 </html>
