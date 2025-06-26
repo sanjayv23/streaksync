@@ -56,15 +56,20 @@ app.get("/", (req,res) => {
 });
 
 app.get("/register", (req,res) => { 
-  res.render("register.ejs", { error: req.query.error || "" });
+  res.render("signup.ejs", { error: req.query.error || "" });
 });
 
+app.get("/signup",(req,res)=>{
+  res.render("signup.ejs",{error: req.query.error || ""});
+})
+
 app.get("/login", (req,res) => {
-  res.render("login.ejs", { error: req.query.error || "" });
+  res.render("signup.ejs", { error: req.query.error || "" });
 });
 
 app.get("/app", async (req,res) => {
   console.log(" data: "+ new Date().toISOString().split('T')[0]);
+  console.log("old date: "+d.getDate());
   if(req.isAuthenticated()) {
     let a,b;
     try {
@@ -136,7 +141,7 @@ app.get("/logout", (req,res) => {
 app.post("/register", async (req,res) => {
 
   const {name, mail, password} = req.body;
-
+  console.log("inside register: "+JSON.stringify(req.body));
   const result = await db.query(
     "select * from users where mail = ($1)",
     [mail]);
@@ -162,7 +167,7 @@ app.post("/register", async (req,res) => {
 // login page
 app.post("/login", passport.authenticate("local", {
   successRedirect: "/app",
-  failureRedirect: "/login?error=Invalid credentials.",
+  failureRedirect: "/signup?error=Invalid credentials.",
 }));
 
 // add task on task list
