@@ -141,7 +141,7 @@ app.get("/logout", (req,res) => {
 app.post("/register", async (req,res) => {
 
   const {name, mail, password} = req.body;
-  console.log("inside register: "+JSON.stringify(req.body));
+  //console.log("inside register: "+JSON.stringify(req.body));
   const result = await db.query(
     "select * from users where mail = ($1)",
     [mail]);
