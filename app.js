@@ -172,7 +172,7 @@ app.post("/login", passport.authenticate("local", {
 
 // add task on task list
 app.post("/task", async (req, res) => {
-  console.log("tk:", req.body.t_name);
+  console.log("tkas:", req.body.t_name);
   const task_id = uuidv4();
   try {
     await db.query(
